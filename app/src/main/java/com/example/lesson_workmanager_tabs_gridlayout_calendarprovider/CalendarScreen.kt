@@ -10,7 +10,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.Button
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.text.font.FontWeight
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import java.util.Calendar
 import java.util.TimeZone
 
@@ -42,12 +48,14 @@ fun getCalendarEvents(context: Context): List<Event> {
 
 @Composable
 fun CalendarEventsScreen(context: Context) {
-    val events = getCalendarEvents(context)
+    val repository = remember { CalendarEventsRepository(context) }
+    val events by repository.calendarEvents.collectAsState(emptyList())
+
     LazyColumn {
         item {
             Button(onClick = {
-                addCalendarEvent(
-                    context, "New Event", "Event Description"
+                repository.addCalendarEvent(
+                    "New Event", "Event Description"
                 )
             }) {
                 Text(text = "Add")
@@ -68,37 +76,29 @@ fun EventItem(event: Event) {
     }
 }
 
-fun addCalendarEvent(
-    context: Context,
-    eventTitle: String,
-    eventDescription: String,
-    eventStartTime: Long,
-    eventEndTime: Long
-) {
-    val values = ContentValues().apply {
-        put(CalendarContract.Events.TITLE, eventTitle)
-        put(CalendarContract.Events.DESCRIPTION, eventDescription)
-        put(CalendarContract.Events.DTSTART, eventStartTime)
-        put(CalendarContract.Events.DTEND, eventEndTime)
-        put(CalendarContract.Events.CALENDAR_ID, 1) // Идентификатор календаря
-        put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
+class CalendarEventsRepository(private val context: Context) {
+    val calendarEvents: Flow<List<Event>> = flow {
+        while (true) {
+            val events = getCalendarEvents(context)
+            emit(events)
+            delay(1000) // обновляйте список каждую секунду (можете настроить на другой интервал)
+        }
     }
-    context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
-}
 
-fun addCalendarEvent(context: Context, eventTitle: String, eventDescription: String) {
-    val cal = Calendar.getInstance()
-    val startTime = cal.timeInMillis + 60 * 60 * 1000 // время начала события через час
-    val endTime = startTime + 60 * 60 * 1000 // время окончания события через час
-    val values = ContentValues().apply {
-        put(CalendarContract.Events.TITLE, eventTitle)
-        put(CalendarContract.Events.DESCRIPTION, eventDescription)
-        put(CalendarContract.Events.DTSTART, startTime)
-        put(CalendarContract.Events.DTEND, endTime)
-        put(CalendarContract.Events.CALENDAR_ID, 1) // Идентификатор календаря
-        put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
+    fun addCalendarEvent(eventTitle: String, eventDescription: String) {
+        val cal = Calendar.getInstance()
+        val startTime = cal.timeInMillis + 60 * 60 * 1000 // время начала события через час
+        val endTime = startTime + 60 * 60 * 1000 // время окончания события через час
+        val values = ContentValues().apply {
+            put(CalendarContract.Events.TITLE, eventTitle)
+            put(CalendarContract.Events.DESCRIPTION, eventDescription)
+            put(CalendarContract.Events.DTSTART, startTime)
+            put(CalendarContract.Events.DTEND, endTime)
+            put(CalendarContract.Events.CALENDAR_ID, 1) // Идентификатор календаря
+            put(CalendarContract.Events.EVENT_TIMEZONE, TimeZone.getDefault().id)
+        }
+        context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
     }
-    context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
 }
 
 data class Event(
